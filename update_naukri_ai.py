@@ -1,5 +1,5 @@
 from playwright.sync_api import sync_playwright
-import google.generativeai as genai
+from google import genai
 import os
 import time
 import random
@@ -8,12 +8,11 @@ EMAIL = os.getenv("NAUKRI_EMAIL")
 PASSWORD = os.getenv("NAUKRI_PASSWORD")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
+# ---------- AI HEADLINE GENERATION ----------
 def generate_headline():
-    model = genai.GenerativeModel("gemini-pro")
-
     prompt = """
     Generate ONE short professional Naukri resume headline (max 220 characters)
     for a Software Developer with:
@@ -25,16 +24,21 @@ def generate_headline():
     - No quotation marks
     """
 
-    response = model.generate_content(prompt)
-    headline = response.text.strip()
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt
+    )
 
+    headline = response.text.strip()
     return headline
 
 
+# ---------- HUMAN-LIKE DELAY ----------
 def human_delay(a=1.5, b=3.5):
     time.sleep(random.uniform(a, b))
 
 
+# ---------- NAUKRI UPDATE ----------
 def update_headline(headline):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -58,7 +62,7 @@ def update_headline(headline):
         page.goto("https://www.naukri.com/mnjuser/profile")
         time.sleep(8)
 
-        # Edit headline
+        # Edit Resume Headline
         page.click('text=Resume Headline')
         human_delay()
 
@@ -73,6 +77,7 @@ def update_headline(headline):
         browser.close()
 
 
+# ---------- MAIN ----------
 if __name__ == "__main__":
     headline = generate_headline()
     update_headline(headline)
