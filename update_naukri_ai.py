@@ -29,8 +29,7 @@ def generate_headline():
         input=prompt
     )
 
-    headline = response.output_text.strip()
-    return headline
+    return response.output_text.strip()
 
 
 # ---------- HUMAN-LIKE DELAY ----------
@@ -38,39 +37,60 @@ def human_delay(a=1.5, b=3.5):
     time.sleep(random.uniform(a, b))
 
 
-# ---------- NAUKRI UPDATE ----------
+# ---------- LOGIN FUNCTION ----------
+def login_naukri(page):
+    page.goto("https://www.naukri.com/nlogin/login")
+    page.wait_for_load_state("networkidle")
+
+    # Email input
+    email_input = page.locator(
+        'input[placeholder="Enter your active Email ID / Username"]'
+    )
+    email_input.wait_for(timeout=60000)
+    email_input.fill(EMAIL)
+
+    human_delay()
+
+    # Password input
+    password_input = page.locator(
+        'input[placeholder="Enter your password"]'
+    )
+    password_input.fill(PASSWORD)
+
+    human_delay()
+
+    # Submit
+    page.click('button[type="submit"]')
+
+    time.sleep(10)
+
+
+# ---------- UPDATE HEADLINE ----------
 def update_headline(headline):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        # Login
-        page.goto("https://www.naukri.com/nlogin/login")
-        human_delay()
+        login_naukri(page)
 
-        page.fill('input[type="text"]', EMAIL)
-        human_delay()
-
-        page.fill('input[type="password"]', PASSWORD)
-        human_delay()
-
-        page.click('button[type="submit"]')
-
-        time.sleep(8)
-
-        # Profile page
+        # Go to profile
         page.goto("https://www.naukri.com/mnjuser/profile")
-        time.sleep(8)
+        page.wait_for_load_state("networkidle")
+        time.sleep(5)
 
-        # Edit Resume Headline
-        page.click('text=Resume Headline')
+        # Click Resume Headline section
+        page.locator("text=Resume Headline").first.click()
         human_delay()
 
+        # Fill headline
         textarea = page.locator("textarea")
+        textarea.wait_for(timeout=30000)
         textarea.fill(headline)
+
         human_delay()
 
-        page.click('button:has-text("Save")')
+        # Save
+        page.locator('button:has-text("Save")').click()
 
         print("Updated headline:", headline)
 
