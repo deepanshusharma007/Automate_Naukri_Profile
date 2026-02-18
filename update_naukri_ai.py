@@ -6,7 +6,7 @@ import random
 
 EMAIL = os.getenv("NAUKRI_EMAIL")
 PASSWORD = os.getenv("NAUKRI_PASSWORD")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 client = OpenAI(api_key="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")
 
