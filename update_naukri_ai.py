@@ -1,14 +1,14 @@
 from playwright.sync_api import sync_playwright
-from google import genai
+from openai import OpenAI
 import os
 import time
 import random
 
 EMAIL = os.getenv("NAUKRI_EMAIL")
 PASSWORD = os.getenv("NAUKRI_PASSWORD")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # ---------- AI HEADLINE GENERATION ----------
@@ -24,12 +24,12 @@ def generate_headline():
     - No quotation marks
     """
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt
+    response = client.responses.create(
+        model="o3-mini",
+        input=prompt
     )
 
-    headline = response.text.strip()
+    headline = response.output_text.strip()
     return headline
 
 
