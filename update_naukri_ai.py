@@ -3,46 +3,52 @@ from openai import OpenAI
 import os
 import time
 import random
-
+import dotenv
+dotenv.load_dotenv()
 EMAIL = os.getenv("NAUKRI_EMAIL")
+print("Using email:", EMAIL)
 PASSWORD = os.getenv("NAUKRI_PASSWORD")
+print("Using password:", "********" if PASSWORD else "None")
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-client = OpenAI(api_key="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")
+# client = OpenAI(api_key="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")
 
 
-# ---------- AI HEADLINE GENERATION ----------
-def generate_headline():
-    prompt = """
-    Generate ONE short professional Naukri resume headline (max 220 characters)
-    for a Software Developer with:
-    - 2+ years experience
-    - Python, Backend, AI/ML interest
-    - Immediate joiner
-    - Recruiter-friendly keywords
-    - No emojis
-    - No quotation marks
-    """
+# # ---------- AI HEADLINE GENERATION ----------
+# def generate_headline():
+#     prompt = """
+# Generate ONE short professional Naukri resume headline (max 220 characters)
+# for a Software Developer with:
+# - 2+ years experience
+# - Python, Backend, AI/ML interest
+# - Immediate joiner
+# - Recruiter-friendly keywords
+# - No emojis
+# - No quotation marks
+# """
 
-    response = client.responses.create(
-        model="o3-mini",
-        input=prompt
-    )
+#     response = client.responses.create(
+#         model="o3-mini",
+#         input=prompt
+#     )
 
-    return response.output_text.strip()
+#     return response.output_text.strip()
 
 
 # ---------- HUMAN-LIKE DELAY ----------
-def human_delay(a=1.5, b=3.5):
+def human_delay(a=1.2, b=2.8):
     time.sleep(random.uniform(a, b))
 
 
-# ---------- LOGIN FUNCTION ----------
+# ---------- LOGIN ----------
 def login_naukri(page):
-    page.goto("https://www.naukri.com/nlogin/login")
-    page.wait_for_load_state("networkidle")
+    # Go directly to login page (simplest & most reliable)
+    page.goto("https://www.naukri.com", timeout=60000)
 
-    # Email input
+    # Click Login link in header
+    page.locator('#login_Layer').click()
+
+    # ----- Email -----
     email_input = page.locator(
         'input[placeholder="Enter your active Email ID / Username"]'
     )
@@ -51,7 +57,7 @@ def login_naukri(page):
 
     human_delay()
 
-    # Password input
+    # ----- Password -----
     password_input = page.locator(
         'input[placeholder="Enter your password"]'
     )
@@ -59,45 +65,101 @@ def login_naukri(page):
 
     human_delay()
 
-    # Submit
-    page.click('button[type="submit"]')
+    # ----- Login Button -----
+    page.locator('button.loginButton').click()
 
-    time.sleep(10)
+    
+
+
+
 
 
 # ---------- UPDATE HEADLINE ----------
-def update_headline(headline):
+def update_headline():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        # browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
+
         page = browser.new_page()
 
+        # LOGIN
         login_naukri(page)
 
-        # Go to profile
-        page.goto("https://www.naukri.com/mnjuser/profile")
-        page.wait_for_load_state("networkidle")
-        time.sleep(5)
+        # Wait for navigation after login
+        page.wait_for_load_state("domcontentloaded")
+        time.sleep(2)
 
-        # Click Resume Headline section
-        page.locator("text=Resume Headline").first.click()
-        human_delay()
+        print("After login URL:", page.url)
 
-        # Fill headline
-        textarea = page.locator("textarea")
-        textarea.wait_for(timeout=30000)
-        textarea.fill(headline)
+        try:
+            profile_link = page.locator('a[href="/mnjuser/profile"]')
+            profile_link.wait_for(timeout=15000)
+            profile_link.click()
+            print("Navigated to profile via header link")
+        except:
+            print("Profile link not found — using direct navigation")
+            page.goto("https://www.naukri.com/mnjuser/profile")
 
-        human_delay()
+        # Wait for profile page
+        page.wait_for_load_state("domcontentloaded")
+        time.sleep(2)
 
-        # Save
-        page.locator('button:has-text("Save")').click()
+        print("Current URL:", page.url)
 
-        print("Updated headline:", headline)
+        # Locate Resume Headline section
+        headline_section = page.locator(
+            "div.widgetHead:has-text('Resume headline')"
+        )
+
+        headline_section.wait_for(timeout=60000)
+
+        # Scroll to it (works with nested containers)
+        headline_section.scroll_into_view_if_needed()
+
+        # time.sleep(3)
+
+        # Click pencil icon inside it
+        edit_button = headline_section.locator("span.edit.icon")
+        edit_button.click()
+
+        print("Clicked Resume Headline edit icon")
+
+        # Locate textarea
+        textarea = page.locator("#resumeHeadlineTxt")
+
+        textarea.wait_for(timeout=60000)
+
+        # Get current text
+        current_text = textarea.input_value().strip()
+
+        print("Current headline:", current_text)
+
+        # Toggle final period
+        if current_text.endswith("."):
+            new_text = current_text[:-1]  # remove period
+        else:
+            new_text = current_text + "."  # add period
+
+        print("Updated headline:", new_text)
+
+        # Update textarea
+        textarea.fill(new_text)
+
+        # page.get_by_role("button", name="Save").click()
+        # Click Save
+        save_button = page.get_by_role("button", name="Save")
+        save_button.wait_for(timeout=60000)
+        save_button.click()
+
+        print("Headline updated successfully")
 
         browser.close()
 
 
 # ---------- MAIN ----------
 if __name__ == "__main__":
-    headline = generate_headline()
-    update_headline(headline)
+    # headline = generate_headline()
+    update_headline()
