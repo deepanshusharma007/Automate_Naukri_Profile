@@ -43,12 +43,10 @@ def human_delay(a=1.2, b=2.8):
 # ---------- LOGIN ----------
 def login_naukri(page):
     # Go directly to login page (simplest & most reliable)
-    # page.goto("https://www.naukri.com", timeout=60000)
-
     page.goto("https://login.naukri.com/nLogin/Login.php", timeout=60000)
 
     # Click Login link in header
-    page.locator('#login_Layer').click()
+    # page.locator('#login_Layer').click()
 
     # ----- Email -----
     email_input = page.locator(
@@ -61,14 +59,17 @@ def login_naukri(page):
 
     # ----- Password -----
     password_input = page.locator(
-        'input[placeholder="Enter your password"]'
+        'input[placeholder="Enter Password"]'
     )
     password_input.fill(PASSWORD)
 
     human_delay()
 
     # ----- Login Button -----
-    page.locator('button.loginButton').click()
+    # page.locator('button.Login').click()
+    page.get_by_role("button", name="Login", exact=True).click()
+
+    print("Clicked Login button")
 
     
 
