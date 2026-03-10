@@ -94,8 +94,8 @@ def update_headline():
         # login_naukri(page)
 
         # Wait for navigation after login
-        page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        # page.wait_for_load_state("domcontentloaded")
+        # time.sleep(2)
 
         print("After login URL:", page.url)
 
