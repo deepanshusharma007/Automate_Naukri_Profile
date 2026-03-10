@@ -173,4 +173,7 @@ def update_headline():
 # ---------- MAIN ----------
 if __name__ == "__main__":
     # headline = generate_headline()
+    print("Starting Naukri automation...")
+    print("Files in working directory:", os.listdir())
+    print("auth.json exists:", os.path.exists("auth.json"))
     update_headline()
