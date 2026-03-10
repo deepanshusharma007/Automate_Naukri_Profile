@@ -86,10 +86,12 @@ def update_headline():
             args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
 
-        page = browser.new_page()
+        context = browser.new_context(storage_state="auth.json")
+
+        page = context.new_page()
 
         # LOGIN
-        login_naukri(page)
+        # login_naukri(page)
 
         # Wait for navigation after login
         page.wait_for_load_state("domcontentloaded")
