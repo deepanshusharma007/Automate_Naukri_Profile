@@ -4,11 +4,15 @@ import os
 import time
 import random
 import dotenv
+
 dotenv.load_dotenv()
+
 EMAIL = os.getenv("NAUKRI_EMAIL")
 print("Using email:", EMAIL)
+
 PASSWORD = os.getenv("NAUKRI_PASSWORD")
 print("Using password:", "********" if PASSWORD else "None")
+
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # client = OpenAI(api_key=<YOUR_API_KEY>)
@@ -71,21 +75,20 @@ def login_naukri(page):
 
     print("Clicked Login button")
 
-    
-
-
-
-
 
 # ---------- UPDATE HEADLINE ----------
 def update_headline():
+
     with sync_playwright() as p:
+
         # browser = p.chromium.launch(headless=False)
+
         browser = p.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
 
+        # load saved session
         context = browser.new_context(storage_state="auth.json")
 
         page = context.new_page()
@@ -93,9 +96,12 @@ def update_headline():
         # LOGIN
         # login_naukri(page)
 
+        # navigate directly to profile page using saved session
+        page.goto("https://www.naukri.com/mnjuser/profile", timeout=60000)
+
         # Wait for navigation after login
-        # page.wait_for_load_state("domcontentloaded")
-        # time.sleep(2)
+        page.wait_for_load_state("domcontentloaded")
+        time.sleep(2)
 
         print("After login URL:", page.url)
 
