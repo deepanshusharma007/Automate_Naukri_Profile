@@ -56,19 +56,23 @@ def update_headline():
         time.sleep(3)
 
         # ---------- Locate Resume Headline ----------
-        headline_section = page.locator("text=Resume headline").first
-
-        headline_section.wait_for(timeout=60000)
-
-        print("Resume headline section located")
-
-        # scroll to element
-        headline_section.scroll_into_view_if_needed()
-
-        time.sleep(1)
-
-        # find edit icon
+        print("Scrolling page to load sections")
+        
+        # force scroll multiple times (handles lazy loading)
+        for _ in range(6):
+            page.evaluate("window.scrollBy(0, 1000)")
+            time.sleep(1)
+        
+        # locate edit icon for resume headline
         edit_button = page.locator("span.edit.icon").first
+        
+        edit_button.wait_for(timeout=60000)
+        
+        edit_button.scroll_into_view_if_needed()
+        
+        edit_button.click()
+        
+        print("Clicked Resume Headline edit icon")
 
         edit_button.wait_for(timeout=60000)
         edit_button.click()
