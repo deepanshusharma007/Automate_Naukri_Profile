@@ -51,28 +51,18 @@ def update_headline():
         # debug screenshot
         page.screenshot(path="debug_profile_page.png", full_page=True)
 
-        # scroll to trigger lazy loading
-        page.mouse.wheel(0, 2000)
-        time.sleep(3)
+        # ---------- Locate Resume Headline Widget ----------
+        # This selector targets the container that has Resume headline
+        headline_widget = page.locator(
+            "div.widgetHead:has(span.widgetTitle:has-text('Resume headline'))"
+        )
 
-        # ---------- Locate Resume Headline ----------
-        print("Scrolling page to load sections")
-        
-        # force scroll multiple times (handles lazy loading)
-        for _ in range(6):
-            page.evaluate("window.scrollBy(0, 1000)")
-            time.sleep(1)
-        
-        # locate edit icon for resume headline
-        edit_button = page.locator("span.edit.icon").first
-        
-        edit_button.wait_for(timeout=60000)
-        
-        edit_button.scroll_into_view_if_needed()
-        
-        edit_button.click()
-        
-        print("Clicked Resume Headline edit icon")
+        headline_widget.wait_for(timeout=60000)
+
+        print("Resume headline widget located")
+
+        # click edit icon inside this widget
+        edit_button = headline_widget.locator("span.edit.icon")
 
         edit_button.wait_for(timeout=60000)
         edit_button.click()
