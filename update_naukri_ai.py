@@ -18,11 +18,18 @@ def human_delay(a=1.2, b=2.8):
     time.sleep(random.uniform(a, b))
 
 
+def scroll_page(page):
+    """Force profile sections to load"""
+    for _ in range(10):
+        page.evaluate("window.scrollBy(0, 1000)")
+        time.sleep(1)
+
+
 # ---------- UPDATE HEADLINE ----------
 def update_headline():
 
     print("Starting Naukri automation...")
-    print("Files in working directory:", os.listdir())
+    print("Files:", os.listdir())
     print("auth.json exists:", os.path.exists("auth.json"))
 
     with sync_playwright() as p:
@@ -32,7 +39,6 @@ def update_headline():
             args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
 
-        # use stored login session
         context = browser.new_context(
             storage_state="auth.json",
             viewport={"width": 1280, "height": 900}
@@ -40,41 +46,41 @@ def update_headline():
 
         page = context.new_page()
 
-        # go directly to profile page
+        # open profile
         page.goto("https://www.naukri.com/mnjuser/profile", timeout=60000)
 
         page.wait_for_load_state("domcontentloaded")
-        time.sleep(3)
+        time.sleep(5)
 
         print("Current URL:", page.url)
 
         # debug screenshot
         page.screenshot(path="debug_profile_page.png", full_page=True)
 
-        # ---------- Locate Resume Headline Widget ----------
-        # This selector targets the container that has Resume headline
-        headline_widget = page.locator(
-            "div.widgetHead:has(span.widgetTitle:has-text('Resume headline'))"
-        )
+        # scroll page to load all widgets
+        print("Scrolling page to trigger lazy loading")
+        scroll_page(page)
 
-        headline_widget.wait_for(timeout=60000)
+        # ---------- OPEN EDIT MODAL ----------
+        print("Searching for edit icon")
 
-        print("Resume headline widget located")
+        edit_buttons = page.locator("span.edit.icon")
 
-        # click edit icon inside this widget
-        edit_button = headline_widget.locator("span.edit.icon")
+        count = edit_buttons.count()
 
-        edit_button.wait_for(timeout=60000)
-        edit_button.click()
+        if count == 0:
+            raise Exception("No edit icons found on profile page")
 
-        print("Clicked Resume Headline edit icon")
+        # resume headline edit button is usually the first one
+        edit_buttons.nth(0).click()
 
-        # ---------- Locate textarea ----------
+        print("Clicked edit icon")
+
+        # ---------- TEXTAREA ----------
         textarea = page.locator("#resumeHeadlineTxt")
 
         textarea.wait_for(timeout=60000)
 
-        # get current headline
         current_text = textarea.input_value().strip()
 
         print("Current headline:", current_text)
@@ -91,7 +97,7 @@ def update_headline():
 
         human_delay()
 
-        # ---------- Click Save ----------
+        # ---------- SAVE ----------
         save_button = page.get_by_role("button", name="Save")
 
         save_button.wait_for(timeout=60000)
@@ -99,7 +105,6 @@ def update_headline():
 
         print("Headline updated successfully")
 
-        # screenshot after update
         page.screenshot(path="headline_updated.png", full_page=True)
 
         browser.close()
