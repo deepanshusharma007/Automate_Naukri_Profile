@@ -35,8 +35,12 @@ def update_headline():
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
+          headless=True,
+          args=[
+          "--no-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-blink-features=AutomationControlled"
+          ]
         )
 
         context = browser.new_context(
