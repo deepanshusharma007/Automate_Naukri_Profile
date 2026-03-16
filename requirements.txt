@@ -2,3 +2,4 @@ playwright
 google.genai
 openai
 python-dotenv
+flask
