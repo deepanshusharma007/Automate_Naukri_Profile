@@ -88,15 +88,33 @@ def update_headline():
         # ---------- OPEN EDIT MODAL ----------
         print("Searching for edit icon")
 
-        edit_buttons = page.locator("span.edit.icon")
+        # dump page HTML for debugging selector issues
+        with open("page_source.html", "w", encoding="utf-8") as f:
+            f.write(page.content())
 
-        count = edit_buttons.count()
+        # try multiple selectors in case Naukri changed their markup
+        selectors = [
+            "span.edit.icon",
+            "span[class*='edit']",
+            "button[class*='edit']",
+            "[data-ga-track*='resumeHeadline'] span[class*='edit']",
+            "div.widgetHead span.edit",
+            "span.editIcon",
+        ]
 
-        if count == 0:
-            raise Exception("No edit icons found on profile page")
+        edit_button = None
+        for sel in selectors:
+            loc = page.locator(sel)
+            if loc.count() > 0:
+                edit_button = loc.nth(0)
+                print(f"Found edit button with selector: {sel}")
+                break
 
-        # resume headline edit button is usually the first one
-        edit_buttons.nth(0).click()
+        if edit_button is None:
+            page.screenshot(path="no_edit_icon.png", full_page=True)
+            raise Exception("No edit icons found on profile page — check no_edit_icon.png and page_source.html")
+
+        edit_button.click()
 
         print("Clicked edit icon")
 
