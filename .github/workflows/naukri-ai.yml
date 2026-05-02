@@ -23,9 +23,6 @@ jobs:
           pip install -r requirements.txt
           playwright install --with-deps
 
-      - name: Restore auth session
-        run: echo '${{ secrets.NAUKRI_AUTH_JSON }}' > auth.json
-
       - name: Run script
         env:
           NAUKRI_EMAIL: ${{ secrets.NAUKRI_EMAIL }}
