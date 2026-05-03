@@ -35,18 +35,26 @@ def update_headline():
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-          headless=True,
-          args=[
-          "--no-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-blink-features=AutomationControlled"
-          ]
+            channel="chrome",  # use real installed Chrome, not Playwright's Chromium
+            headless=False,    # headless=False avoids many bot-detection triggers
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--start-maximized",
+            ]
         )
 
         context = browser.new_context(
             storage_state="auth.json" if os.path.exists("auth.json") else None,
-            viewport={"width": 1280, "height": 900}
+            viewport=None,  # let Chrome use its natural window size
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
         )
+
+        # mask automation signals
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            window.chrome = { runtime: {} };
+        """)
 
         page = context.new_page()
 
