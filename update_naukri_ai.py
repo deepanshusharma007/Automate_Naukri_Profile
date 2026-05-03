@@ -5,9 +5,6 @@ import dotenv
 
 dotenv.load_dotenv()
 
-EMAIL = os.getenv("NAUKRI_EMAIL")
-PASSWORD = os.getenv("NAUKRI_PASSWORD")
-
 PROFILE_ID = "aa5e21de3b6391f3f347f14cabad8f6159b6139c03441d7eb679862093b973de"
 
 HEADLINE_URL = "https://www.naukri.com/cloudgateway-mynaukri/resman-aggregator-services/v1/users/self/fullprofiles"
@@ -32,47 +29,35 @@ HEADERS = {
     "sec-fetch-site": "same-origin",
 }
 
-HEADLINE = "Backend Developer with 3+ years of experience in Python, API development, and AI-powered backend systems"
 
+def load_auth_from_file():
+    """Load Bearer token and cookies from auth.json (Playwright session file)."""
+    with open("auth.json") as f:
+        state = json.load(f)
 
-def get_auth_token():
-    """Login to Naukri and return Bearer token + cookies."""
-    print("Logging in to Naukri...")
-    login_url = "https://www.naukri.com/central-login-services/v2/login"
-    payload = {
-        "username": EMAIL,
-        "password": PASSWORD,
-        "type": "login",
-    }
-    headers = {
-        "accept": "application/json",
-        "content-type": "application/json",
-        "appid": "135",
-        "clientid": "d3skt0p",
-        "systemid": "Naukri",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-    }
-    session = requests.Session()
-    resp = session.post(login_url, json=payload, headers=headers)
-    resp.raise_for_status()
-    data = resp.json()
-    token = data.get("loginData", {}).get("token")
+    cookies = {c["name"]: c["value"] for c in state.get("cookies", [])}
+    token = cookies.get("nauk_at")
+
     if not token:
-        raise Exception(f"Login failed: {data}")
-    print("Login successful")
-    return token, session.cookies
+        raise Exception("nauk_at token not found in auth.json — regenerate auth.json")
+
+    print("Loaded auth from auth.json")
+    return token, cookies
 
 
 def update_headline(token, cookies):
-    """Toggle a period on the headline to trigger profile update."""
-    # first fetch current headline
-    get_url = "https://www.naukri.com/cloudgateway-mynaukri/resman-aggregator-services/v1/users/self/fullprofiles"
+    """Fetch current headline, toggle period, and save."""
     headers = {**HEADERS, "authorization": f"Bearer {token}"}
 
-    resp = requests.get(get_url, headers=headers, cookies=cookies)
+    # fetch current headline
+    resp = requests.get(HEADLINE_URL, headers=headers, cookies=cookies)
     resp.raise_for_status()
-    current = resp.json().get("profile", {}).get("resumeHeadline", HEADLINE)
+    data = resp.json()
+    current = data.get("profile", {}).get("resumeHeadline", "")
     print(f"Current headline: {current}")
+
+    if not current:
+        raise Exception("Could not fetch current headline from API")
 
     # toggle period
     if current.strip().endswith("."):
@@ -89,18 +74,13 @@ def update_headline(token, cookies):
 
     resp = requests.post(HEADLINE_URL, headers=headers, cookies=cookies, json=payload)
     resp.raise_for_status()
-    print(f"Response status: {resp.status_code}")
+    print(f"Response: {resp.status_code}")
     print("Headline updated successfully!")
 
 
 def main():
     print("Starting Naukri profile update...")
-    print(f"Email: {EMAIL}")
-
-    if not EMAIL or not PASSWORD:
-        raise Exception("NAUKRI_EMAIL and NAUKRI_PASSWORD must be set")
-
-    token, cookies = get_auth_token()
+    token, cookies = load_auth_from_file()
     update_headline(token, cookies)
 
 
