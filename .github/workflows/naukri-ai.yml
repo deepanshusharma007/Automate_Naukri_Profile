@@ -1,4 +1,4 @@
-name: AI Naukri Headline Updater
+name: Naukri Profile Updater
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   update-headline:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
@@ -19,22 +19,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          playwright install chromium
+        run: pip install -r requirements.txt
 
       - name: Run script
         env:
           NAUKRI_EMAIL: ${{ secrets.NAUKRI_EMAIL }}
           NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
         run: python update_naukri_ai.py
-
-      - name: Upload debug artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-screenshots
-          path: |
-            *.png
-            page_source.html
-          if-no-files-found: ignore

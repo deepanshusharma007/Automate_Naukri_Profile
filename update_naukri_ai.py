@@ -1,165 +1,108 @@
-from playwright.sync_api import sync_playwright
 import os
-import time
-import random
+import json
+import requests
 import dotenv
 
 dotenv.load_dotenv()
 
 EMAIL = os.getenv("NAUKRI_EMAIL")
-print("Using email:", EMAIL)
-
 PASSWORD = os.getenv("NAUKRI_PASSWORD")
-print("Using password:", "********" if PASSWORD else "None")
+
+PROFILE_ID = "aa5e21de3b6391f3f347f14cabad8f6159b6139c03441d7eb679862093b973de"
+
+HEADLINE_URL = "https://www.naukri.com/cloudgateway-mynaukri/resman-aggregator-services/v1/users/self/fullprofiles"
+
+HEADERS = {
+    "accept": "application/json",
+    "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
+    "appid": "135",
+    "clientid": "m0b5",
+    "content-type": "application/json",
+    "systemid": "Naukri",
+    "x-http-method-override": "PUT",
+    "x-requested-with": "XMLHttpRequest",
+    "origin": "https://www.naukri.com",
+    "referer": "https://www.naukri.com/mnj/resumeHeadline/edit?orig=ffp",
+    "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
+    "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": '"iOS"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+}
+
+HEADLINE = "Backend Developer with 3+ years of experience in Python, API development, and AI-powered backend systems"
 
 
-# ---------- HUMAN-LIKE DELAY ----------
-def human_delay(a=1.2, b=2.8):
-    time.sleep(random.uniform(a, b))
+def get_auth_token():
+    """Login to Naukri and return Bearer token + cookies."""
+    print("Logging in to Naukri...")
+    login_url = "https://www.naukri.com/central-login-services/v2/login"
+    payload = {
+        "username": EMAIL,
+        "password": PASSWORD,
+        "type": "login",
+    }
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "appid": "135",
+        "clientid": "d3skt0p",
+        "systemid": "Naukri",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    }
+    session = requests.Session()
+    resp = session.post(login_url, json=payload, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
+    token = data.get("loginData", {}).get("token")
+    if not token:
+        raise Exception(f"Login failed: {data}")
+    print("Login successful")
+    return token, session.cookies
 
 
-def scroll_page(page):
-    """Force profile sections to load"""
-    for _ in range(10):
-        page.evaluate("window.scrollBy(0, 1000)")
-        time.sleep(1)
+def update_headline(token, cookies):
+    """Toggle a period on the headline to trigger profile update."""
+    # first fetch current headline
+    get_url = "https://www.naukri.com/cloudgateway-mynaukri/resman-aggregator-services/v1/users/self/fullprofiles"
+    headers = {**HEADERS, "authorization": f"Bearer {token}"}
+
+    resp = requests.get(get_url, headers=headers, cookies=cookies)
+    resp.raise_for_status()
+    current = resp.json().get("profile", {}).get("resumeHeadline", HEADLINE)
+    print(f"Current headline: {current}")
+
+    # toggle period
+    if current.strip().endswith("."):
+        new_headline = current.strip()[:-1]
+    else:
+        new_headline = current.strip() + "."
+
+    print(f"Updated headline: {new_headline}")
+
+    payload = {
+        "profile": {"resumeHeadline": new_headline},
+        "profileId": PROFILE_ID,
+    }
+
+    resp = requests.post(HEADLINE_URL, headers=headers, cookies=cookies, json=payload)
+    resp.raise_for_status()
+    print(f"Response status: {resp.status_code}")
+    print("Headline updated successfully!")
 
 
-# ---------- UPDATE HEADLINE ----------
-def update_headline():
+def main():
+    print("Starting Naukri profile update...")
+    print(f"Email: {EMAIL}")
 
-    print("Starting Naukri automation...")
-    print("Files:", os.listdir())
-    print("auth.json exists:", os.path.exists("auth.json"))
+    if not EMAIL or not PASSWORD:
+        raise Exception("NAUKRI_EMAIL and NAUKRI_PASSWORD must be set")
 
-    with sync_playwright() as p:
-
-        browser = p.chromium.launch(
-            channel="chrome",  # use real installed Chrome, not Playwright's Chromium
-            headless=False,    # headless=False avoids many bot-detection triggers
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--start-maximized",
-            ]
-        )
-
-        context = browser.new_context(
-            storage_state="auth.json" if os.path.exists("auth.json") else None,
-            viewport=None,  # let Chrome use its natural window size
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-        )
-
-        # mask automation signals
-        context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            window.chrome = { runtime: {} };
-        """)
-
-        page = context.new_page()
-
-        # open profile
-        page.goto("https://www.naukri.com/mnjuser/profile", timeout=60000)
-
-        page.wait_for_load_state("domcontentloaded")
-        time.sleep(5)
-
-        print("Current URL:", page.url)
-
-        # if redirected to login, session expired — do a fresh login
-        if "login" in page.url or "naukri.com/mnjuser/profile" not in page.url:
-            print("Session expired, logging in...")
-            if not EMAIL or not PASSWORD:
-                raise Exception("Session expired and no credentials provided")
-            page.goto("https://www.naukri.com/nlogin/login", timeout=60000)
-            page.wait_for_load_state("domcontentloaded")
-            page.locator("input[placeholder='Enter your active Email ID / Username']").fill(EMAIL)
-            human_delay(0.5, 1.2)
-            page.locator("input[placeholder='Enter your password']").fill(PASSWORD)
-            human_delay(0.5, 1.2)
-            page.get_by_role("button", name="Login").click()
-            page.wait_for_load_state("domcontentloaded")
-            time.sleep(4)
-            print("Logged in, now navigating to profile...")
-            page.goto("https://www.naukri.com/mnjuser/profile", timeout=60000)
-            page.wait_for_load_state("domcontentloaded")
-            time.sleep(5)
-            print("Current URL after login:", page.url)
-
-        # debug screenshot
-        page.screenshot(path="debug_profile_page.png", full_page=True)
-
-        # scroll page to load all widgets
-        print("Scrolling page to trigger lazy loading")
-        scroll_page(page)
-
-        # ---------- OPEN EDIT MODAL ----------
-        print("Searching for edit icon")
-
-        # dump page HTML for debugging selector issues
-        with open("page_source.html", "w", encoding="utf-8") as f:
-            f.write(page.content())
-
-        # try multiple selectors in case Naukri changed their markup
-        selectors = [
-            "span.edit.icon",
-            "span[class*='edit']",
-            "button[class*='edit']",
-            "[data-ga-track*='resumeHeadline'] span[class*='edit']",
-            "div.widgetHead span.edit",
-            "span.editIcon",
-        ]
-
-        edit_button = None
-        for sel in selectors:
-            loc = page.locator(sel)
-            if loc.count() > 0:
-                edit_button = loc.nth(0)
-                print(f"Found edit button with selector: {sel}")
-                break
-
-        if edit_button is None:
-            page.screenshot(path="no_edit_icon.png", full_page=True)
-            raise Exception("No edit icons found on profile page — check no_edit_icon.png and page_source.html")
-
-        edit_button.click()
-
-        print("Clicked edit icon")
-
-        # ---------- TEXTAREA ----------
-        textarea = page.locator("#resumeHeadlineTxt")
-
-        textarea.wait_for(timeout=60000)
-
-        current_text = textarea.input_value().strip()
-
-        print("Current headline:", current_text)
-
-        # toggle period
-        if current_text.endswith("."):
-            new_text = current_text[:-1]
-        else:
-            new_text = current_text + "."
-
-        print("Updated headline:", new_text)
-
-        textarea.fill(new_text)
-
-        human_delay()
-
-        # ---------- SAVE ----------
-        save_button = page.get_by_role("button", name="Save")
-
-        save_button.wait_for(timeout=60000)
-        save_button.click()
-
-        print("Headline updated successfully")
-
-        page.screenshot(path="headline_updated.png", full_page=True)
-
-        browser.close()
+    token, cookies = get_auth_token()
+    update_headline(token, cookies)
 
 
-# ---------- MAIN ----------
 if __name__ == "__main__":
-    update_headline()
+    main()

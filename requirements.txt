@@ -1,5 +1,2 @@
-playwright
-google.genai
-openai
+requests
 python-dotenv
-flask
