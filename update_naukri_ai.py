@@ -1,79 +1,139 @@
+from playwright.sync_api import sync_playwright
 import os
-import json
-import requests
+import time
+import random
 import dotenv
 
 dotenv.load_dotenv()
 
-PROFILE_ID = "aa5e21de3b6391f3f347f14cabad8f6159b6139c03441d7eb679862093b973de"
-HEADLINE_URL = "https://www.naukri.com/cloudgateway-mynaukri/resman-aggregator-services/v1/users/self/fullprofiles"
+EMAIL = os.getenv("NAUKRI_EMAIL")
+print("Using email:", EMAIL)
 
-HEADERS = {
-    "accept": "application/json",
-    "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
-    "appid": "135",
-    "clientid": "m0b5",
-    "content-type": "application/json",
-    "systemid": "Naukri",
-    "x-http-method-override": "PUT",
-    "x-requested-with": "XMLHttpRequest",
-    "origin": "https://www.naukri.com",
-    "referer": "https://www.naukri.com/mnj/resumeHeadline/edit?orig=ffp",
-    "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
-    "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
-    "sec-ch-ua-mobile": "?1",
-    "sec-ch-ua-platform": '"iOS"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-}
+PASSWORD = os.getenv("NAUKRI_PASSWORD")
+print("Using password:", "********" if PASSWORD else "None")
 
 
-def load_session():
-    """Load token and cookies from auth.json."""
-    with open("auth.json") as f:
-        state = json.load(f)
-    cookies = {c["name"]: c["value"] for c in state.get("cookies", [])}
-    token = cookies.get("nauk_at")
-    if not token:
-        raise Exception("nauk_at not found in auth.json — please regenerate auth.json")
-    print("Session loaded from auth.json")
-    return token, cookies
+# ---------- HUMAN-LIKE DELAY ----------
+def human_delay(a=1.2, b=2.8):
+    time.sleep(random.uniform(a, b))
 
 
-def update_headline(token, cookies):
-    """Fetch current headline, toggle period, save."""
-    headers = {**HEADERS, "authorization": f"Bearer {token}"}
-
-    # fetch current headline
-    resp = requests.get(HEADLINE_URL, headers=headers, cookies=cookies)
-    print(f"GET response: {resp.status_code}")
-    resp.raise_for_status()
-    current = resp.json().get("profile", {}).get("resumeHeadline", "")
-    print(f"Current headline: {current}")
-
-    if not current:
-        raise Exception("Could not fetch current headline from API")
-
-    new_headline = current.strip()[:-1] if current.strip().endswith(".") else current.strip() + "."
-    print(f"New headline: {new_headline}")
-
-    resp = requests.post(
-        HEADLINE_URL,
-        headers=headers,
-        cookies=cookies,
-        json={"profile": {"resumeHeadline": new_headline}, "profileId": PROFILE_ID},
-    )
-    print(f"POST response: {resp.status_code}")
-    resp.raise_for_status()
-    print("Headline updated successfully!")
+def scroll_page(page):
+    """Force profile sections to load"""
+    for _ in range(10):
+        page.evaluate("window.scrollBy(0, 1000)")
+        time.sleep(1)
 
 
-def main():
-    print("Starting Naukri profile update...")
-    token, cookies = load_session()
-    update_headline(token, cookies)
+# ---------- UPDATE HEADLINE ----------
+def update_headline():
+
+    print("Starting Naukri automation...")
+    print("Files:", os.listdir())
+    print("auth.json exists:", os.path.exists("auth.json"))
+
+    with sync_playwright() as p:
+
+        browser = p.chromium.launch(
+          headless=True,
+          args=[
+          "--no-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-blink-features=AutomationControlled"
+          ]
+        )
+
+        context = browser.new_context(
+            storage_state="auth.json" if os.path.exists("auth.json") else None,
+            viewport={"width": 1280, "height": 900}
+        )
+
+        page = context.new_page()
+
+        # open profile
+        page.goto("https://www.naukri.com/mnjuser/profile", timeout=60000)
+
+        page.wait_for_load_state("domcontentloaded")
+        time.sleep(5)
+
+        print("Current URL:", page.url)
+
+        # if redirected to login, session expired — do a fresh login
+        if "login" in page.url or "naukri.com/mnjuser/profile" not in page.url:
+            print("Session expired, logging in...")
+            if not EMAIL or not PASSWORD:
+                raise Exception("Session expired and no credentials provided")
+            page.goto("https://www.naukri.com/nlogin/login", timeout=60000)
+            page.wait_for_load_state("domcontentloaded")
+            page.locator("input[placeholder='Enter your active Email ID / Username']").fill(EMAIL)
+            human_delay(0.5, 1.2)
+            page.locator("input[placeholder='Enter your password']").fill(PASSWORD)
+            human_delay(0.5, 1.2)
+            page.get_by_role("button", name="Login").click()
+            page.wait_for_load_state("domcontentloaded")
+            time.sleep(4)
+            print("Logged in, now navigating to profile...")
+            page.goto("https://www.naukri.com/mnjuser/profile", timeout=60000)
+            page.wait_for_load_state("domcontentloaded")
+            time.sleep(5)
+            print("Current URL after login:", page.url)
+
+        # debug screenshot
+        page.screenshot(path="debug_profile_page.png", full_page=True)
+
+        # scroll page to load all widgets
+        print("Scrolling page to trigger lazy loading")
+        scroll_page(page)
+
+        # ---------- OPEN EDIT MODAL ----------
+        print("Searching for edit icon")
+
+        edit_buttons = page.locator("span.edit.icon")
+
+        count = edit_buttons.count()
+
+        if count == 0:
+            raise Exception("No edit icons found on profile page")
+
+        # resume headline edit button is usually the first one
+        edit_buttons.nth(0).click()
+
+        print("Clicked edit icon")
+
+        # ---------- TEXTAREA ----------
+        textarea = page.locator("#resumeHeadlineTxt")
+
+        textarea.wait_for(timeout=60000)
+
+        current_text = textarea.input_value().strip()
+
+        print("Current headline:", current_text)
+
+        # toggle period
+        if current_text.endswith("."):
+            new_text = current_text[:-1]
+        else:
+            new_text = current_text + "."
+
+        print("Updated headline:", new_text)
+
+        textarea.fill(new_text)
+
+        human_delay()
+
+        # ---------- SAVE ----------
+        save_button = page.get_by_role("button", name="Save")
+
+        save_button.wait_for(timeout=60000)
+        save_button.click()
+
+        print("Headline updated successfully")
+
+        page.screenshot(path="headline_updated.png", full_page=True)
+
+        browser.close()
 
 
+# ---------- MAIN ----------
 if __name__ == "__main__":
-    main()
+    update_headline()
