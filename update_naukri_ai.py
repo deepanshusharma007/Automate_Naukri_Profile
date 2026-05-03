@@ -5,21 +5,20 @@ import dotenv
 
 dotenv.load_dotenv()
 
+EMAIL = os.getenv("NAUKRI_EMAIL")
+PASSWORD = os.getenv("NAUKRI_PASSWORD")
+
 PROFILE_ID = "aa5e21de3b6391f3f347f14cabad8f6159b6139c03441d7eb679862093b973de"
-
 HEADLINE_URL = "https://www.naukri.com/cloudgateway-mynaukri/resman-aggregator-services/v1/users/self/fullprofiles"
+LOGIN_URL = "https://www.naukri.com/central-login-services/v1/login"
 
-HEADERS = {
+COMMON_HEADERS = {
     "accept": "application/json",
     "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
     "appid": "135",
     "clientid": "m0b5",
     "content-type": "application/json",
-    "systemid": "Naukri",
-    "x-http-method-override": "PUT",
-    "x-requested-with": "XMLHttpRequest",
     "origin": "https://www.naukri.com",
-    "referer": "https://www.naukri.com/mnj/resumeHeadline/edit?orig=ffp",
     "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
     "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
     "sec-ch-ua-mobile": "?1",
@@ -27,60 +26,77 @@ HEADERS = {
     "sec-fetch-dest": "empty",
     "sec-fetch-mode": "cors",
     "sec-fetch-site": "same-origin",
+    "x-requested-with": "XMLHttpRequest",
 }
 
 
-def load_auth_from_file():
-    """Load Bearer token and cookies from auth.json (Playwright session file)."""
-    with open("auth.json") as f:
-        state = json.load(f)
+def login():
+    """Login and return Bearer token + session cookies."""
+    print(f"Logging in as {EMAIL}...")
+    session = requests.Session()
+    resp = session.post(
+        LOGIN_URL,
+        headers={**COMMON_HEADERS, "systemid": "jobseeker", "referer": "https://www.naukri.com/mnj/login"},
+        json={"username": EMAIL, "password": PASSWORD, "isLoginByEmail": True},
+    )
+    print(f"Login response: {resp.status_code}")
+    resp.raise_for_status()
+    data = resp.json()
+    print(f"Login data keys: {list(data.keys())}")
 
-    cookies = {c["name"]: c["value"] for c in state.get("cookies", [])}
-    token = cookies.get("nauk_at")
+    # token can be in different places depending on response structure
+    token = (
+        data.get("loginData", {}).get("token")
+        or data.get("data", {}).get("token")
+        or data.get("token")
+        or session.cookies.get("nauk_at")
+    )
 
     if not token:
-        raise Exception("nauk_at token not found in auth.json — regenerate auth.json")
+        raise Exception(f"Could not find token in login response: {json.dumps(data, indent=2)[:500]}")
 
-    print("Loaded auth from auth.json")
-    return token, cookies
+    print("Login successful")
+    return token, session.cookies
 
 
 def update_headline(token, cookies):
-    """Fetch current headline, toggle period, and save."""
-    headers = {**HEADERS, "authorization": f"Bearer {token}"}
+    """Fetch current headline, toggle period, save."""
+    headers = {
+        **COMMON_HEADERS,
+        "authorization": f"Bearer {token}",
+        "systemid": "Naukri",
+        "referer": "https://www.naukri.com/mnj/resumeHeadline/edit?orig=ffp",
+        "x-http-method-override": "PUT",
+    }
 
     # fetch current headline
     resp = requests.get(HEADLINE_URL, headers=headers, cookies=cookies)
     resp.raise_for_status()
-    data = resp.json()
-    current = data.get("profile", {}).get("resumeHeadline", "")
+    current = resp.json().get("profile", {}).get("resumeHeadline", "")
     print(f"Current headline: {current}")
 
     if not current:
-        raise Exception("Could not fetch current headline from API")
+        raise Exception("Could not fetch current headline")
 
-    # toggle period
-    if current.strip().endswith("."):
-        new_headline = current.strip()[:-1]
-    else:
-        new_headline = current.strip() + "."
-
+    new_headline = current.strip()[:-1] if current.strip().endswith(".") else current.strip() + "."
     print(f"Updated headline: {new_headline}")
 
-    payload = {
-        "profile": {"resumeHeadline": new_headline},
-        "profileId": PROFILE_ID,
-    }
-
-    resp = requests.post(HEADLINE_URL, headers=headers, cookies=cookies, json=payload)
+    resp = requests.post(
+        HEADLINE_URL,
+        headers=headers,
+        cookies=cookies,
+        json={"profile": {"resumeHeadline": new_headline}, "profileId": PROFILE_ID},
+    )
     resp.raise_for_status()
-    print(f"Response: {resp.status_code}")
+    print(f"Save response: {resp.status_code}")
     print("Headline updated successfully!")
 
 
 def main():
     print("Starting Naukri profile update...")
-    token, cookies = load_auth_from_file()
+    if not EMAIL or not PASSWORD:
+        raise Exception("NAUKRI_EMAIL and NAUKRI_PASSWORD must be set as env vars or in .env")
+    token, cookies = login()
     update_headline(token, cookies)
 
 
